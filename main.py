@@ -29,7 +29,7 @@ def post_to_supabase(data):
     return requests.post(f"{URL}/rest/v1/tjb_9_rus", json=data, headers=headers)
 
 # --- 3. ИНТЕРФЕЙС ---
-st.title("🪐 9 КЛАСС. СОЧ ПО ФИЗИКЕ (ОСНОВЫ ДИНАМИКИ)")
+st.title("🪐 9 КЛАСС. СОЧ ПО ФИЗИКЕ (ОСНОВЫ DИНАМИКИ)")
 st.warning("⚠️ Внимание: Выход из вкладки браузера более чем на 5 секунд приведет к аннулированию работы!")
 
 with st.sidebar:
@@ -38,14 +38,32 @@ with st.sidebar:
     student_class = st.selectbox("Класс:", ["9 А (рус)", "9 Б (рус)", "9 В (рус)"])
     st.info("Время на выполнение: 45 минут")
 
-# --- 4. ANTI-CHEAT JS (Вкладкадан шыққанды бақылау) ---
+# --- 4. ANTI-CHEAT JS + ЗВУКОВАЯ СИРЕНА ---
 if student_name:
     components.html(f"""
         <script>
         let timeout;
+        // Настройка звука сирены
+        const alarm = new Audio('https://www.soundjay.com/buttons/beep-01a.mp3');
+        alarm.loop = true;
+
+        // Функция голосового предупреждения
+        function speak(text) {{
+            const msg = new SpeechSynthesisUtterance();
+            msg.text = text;
+            msg.lang = 'ru-RU';
+            window.speechSynthesis.speak(msg);
+        }}
+
         document.addEventListener("visibilitychange", function() {{
             if (document.hidden) {{
-                alert("ВНИМАНИЕ! У тебя есть 5 секунд, чтобы вернуться, иначе работа будет аннулирована!");
+                // 1. Включить сирену
+                alarm.play();
+                
+                // 2. Сказать голосом (на русском)
+                speak("Внимание! Немедленно вернись к тесту! У тебя осталось пять секунд!");
+                
+                // 3. Запустить таймер блокировки
                 timeout = setTimeout(function() {{
                     const data = {{
                         student_name: '{student_name}',
@@ -67,7 +85,11 @@ if student_name:
                     }});
                 }}, 5000);
             }} else {{
+                // Оқушы қайтып келгенде дыбыстарды өшіру
                 clearTimeout(timeout);
+                alarm.pause();
+                alarm.currentTime = 0;
+                window.speechSynthesis.cancel();
             }}
         }});
         </script>
@@ -116,13 +138,13 @@ if submit:
         }
         res = post_to_supabase(payload)
         if res.status_code in [200, 201]:
-            st.success("🎉 Работа успешно принята! Результаты будут доступны после проверки ИИ.")
+            st.success("🎉 Работа успешно принята!")
             st.balloons()
 
 # --- 7. НӘТИЖЕНІ ІЗДЕУ ---
 st.markdown("---")
 st.subheader("🔎 Проверить свои результаты")
-search_name = st.text_input("Введите ваше имя (точно как при сдаче):", key="search_input")
+search_name = st.text_input("Введите ваше имя:", key="search_input")
 
 if search_name:
     search_headers = {"apikey": KEY, "Authorization": f"Bearer {KEY}"}
@@ -135,14 +157,10 @@ if search_name:
             st.error(f"🚫 {result['student_name']}, твоя работа аннулирована.")
             st.info(f"Причина: {result['ai_feedback']}")
         elif result['status'] == 'pending':
-            st.warning("⏳ Работа на проверке у ИИ. Пожалуйста, подождите 1-2 минуты.")
+            st.warning("⏳ Работа на проверке. Подождите 1-2 минуты.")
         elif result['status'] == 'done':
             st.success(f"✅ {result['student_name']}, работа проверена!")
-            st.metric("Твой итоговый балл:", f"{result.get('score', 0)} / 25")
-            st.markdown(f"""
-                <div style="background-color: white; padding: 20px; border-radius: 10px; border: 1px solid #e0e0e0;">
-                    {result['ai_feedback']}
-                </div>
-            """, unsafe_allow_html=True)
+            st.metric("Твой балл:", f"{result.get('score', 0)} / 25")
+            st.info(result['ai_feedback'])
     else:
-        st.info("🔍 Работа с таким именем не найдена. Проверьте правильность написания.")
+        st.info("🔍 Работа не найдена.")
